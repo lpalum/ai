@@ -34,8 +34,7 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    # Open Moves Score
+    # Difference in moves between active and inactive player (at this ply)
     if game.is_loser(player):
         return float("-inf")
 
@@ -66,17 +65,15 @@ def custom_score_2(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    # Difference in moves score
+
+    # Number of moves available to the active player at this ply.
     if game.is_loser(player):
         return float("-inf")
 
     if game.is_winner(player):
         return float("inf")
 
-    own_moves = len(game.get_legal_moves(player))
-    opp_moves = len(game.get_legal_moves(game.get_opponent(player)))
-    return float(own_moves - opp_moves)
+    return float(len(game.get_legal_moves(player)))
 
 def custom_score_3(game, player):
     """Calculate the heuristic value of a game state from the point of view
@@ -100,17 +97,24 @@ def custom_score_3(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    # Square of the distance from the center of the board
+
+    # Square of the distance to the center of the board for the active player
     if game.is_loser(player):
         return float("-inf")
 
     if game.is_winner(player):
         return float("inf")
 
-    w, h = game.width / 2., game.height / 2.
-    y, x = game.get_player_location(player)
-    return float((h - y)**2 + (w - x)**2)
+    #w, h = game.width / 2., game.height / 2.
+    #y, x = game.get_player_location(player)
+    #return float((h - y)**2 + (w - x)**2)
+    # the difference between my open moves and two times my opponents open moves.
+    mom=float(len(game.get_legal_moves(player)))
+    oom=float(len(game.get_legal_moves(game.inactive_player)))
+    return mom - 2*oom
+
+
+
 
 class IsolationPlayer:
     """Base class for minimax and alphabeta agents -- this class is never
@@ -238,14 +242,15 @@ class MinimaxPlayer(IsolationPlayer):
             """
             if self.time_left() < self.TIMER_THRESHOLD:
                 raise SearchTimeout()
-
+            # No more moves? We are finished with the game.
             if len(game.get_legal_moves()) == 0:
                 return True
             else:
                 return False
 
+        # best outcome of player 2 (min) given the actions of player 1 (max)
         def _min_value(game, d):
-            """ Return the value for a win (+1) if the game is over
+            """ Return the value/score for a win if the game is over
             or reached the appropriate depth in the tree,
             otherwise return the minimum value over all legal child
             nodes.
@@ -262,6 +267,7 @@ class MinimaxPlayer(IsolationPlayer):
                 v = min(v, _max_value(game.forecast_move(m), d-1))
             return v
 
+        # best outcome of player 1 (max) given the actions of player 2 (min)
         def _max_value(game, d):
             """ Return the value for a loss (-1) if the game is over
             or reached the appropriate depth in the tree,
@@ -283,8 +289,10 @@ class MinimaxPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        #raise NotImplementedError
+        # For this game governed by the depth limited minimax player strategy
+        # Iterate through the legal moves maximizing player 1 (max) return
+        # assume that player 1 is "on the board" when the game starts and it is
+        # player 2s (min) turn.
         legal_moves = game.get_legal_moves()
         if not legal_moves:
             return (-1, -1)
@@ -338,6 +346,9 @@ class AlphaBetaPlayer(IsolationPlayer):
         try:
             # The try/except block will automatically catch the exception
             # raised when the timer is about to expire.
+            # Start with a depth of 1 and interatively increase the depth
+            # until the timeout occurs and then return the best move
+            # found up until that point.
             depth=1
             while True:
                 best_move =  self.alphabeta(game, depth)
@@ -400,14 +411,15 @@ class AlphaBetaPlayer(IsolationPlayer):
             """
             if self.time_left() < self.TIMER_THRESHOLD:
                 raise SearchTimeout()
-
+            # No more moves, we are finished with the game.
             if len(game.get_legal_moves()) == 0:
                 return True
             else:
                 return False
 
+        # best outcome of player 2 (min) given the actions of player 1 (max)
         def _min_value(game, d, alpha, beta):
-            """ Return the value for a win (+1) if the game is over
+            """ Return the value/score for a win if the game is over
             or reached the appropriate depth in the tree,
             otherwise return the minimum value over all legal child
             nodes.
@@ -427,8 +439,9 @@ class AlphaBetaPlayer(IsolationPlayer):
                 beta = min(beta,v)
             return v
 
+        # best outcome of player 1 (max) given the actions of player 2 (min)
         def _max_value(game, d, alpha, beta):
-            """ Return the value for a loss (-1) if the game is over
+            """ Return the value/score for a loss if the game is over
             or reached the appropriate depth in the tree,
             otherwise return the maximum value over all legal child
             nodes.
@@ -452,21 +465,39 @@ class AlphaBetaPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        #raise NotImplementedError
+        # Iterate through the legal moves.  Player 1 (max) is "one the board"
+        # start with player 2 (min). Depth should be decremented by 1 because we
+        # are starting one ply deep searching through the game tree.
         legal_moves = game.get_legal_moves()
         if not legal_moves:
             return (-1, -1)
 
-        best_move=None
+        # begin a depth limited a-b pruning game search with the best score initialized to
+        # the first element of the legal moves.
+        # best_score (alpha) for player 1 maximizer is intialized to -inf
+        # beta is initialized to +inf at the start of the game.
+        '''
+        non_reflective_moves = [(1,6),(2,6),(4,6),(5,6),(0,1),(0,2),(0,4),(0,5),(1,0),(2,0),(4,0),(5,0),(6,1),(6,2),(6,4),(6,5)]
+        nro = [i for i, j in enumerate(legal_moves) if j in non_reflective_moves]
+        ico = [i for i, j in enumerate(legal_moves) if j == (3,3)]
+        if len(ico)>=1:
+            best_move=legal_moves[ico[0]]
+            return best_move
+        elif len(nro)>=1:
+            best_move=legal_moves[random.choice(nro)]
+            return best_move
+        else:
+        '''
+        best_move=legal_moves[0]
         best_score=float("-inf")
+        # interate through the legal moves starting with player 2 minimizer.  Player 1 is already
+        # on the board.  We are starting at ply 1 hence the reduction in depth of 1
         for m in legal_moves:
             the_score = _min_value(game.forecast_move(m), depth - 1, best_score, beta)
-            #print(m,best_score,the_score)
+            # Keep the best score and move as we iterate through the possible moves.
             if the_score > best_score:
                 best_score=the_score
                 best_move=m
         return best_move
-        #return max(legal_moves, key=lambda m: _min_value(game.forecast_move(m), depth-1, alpha, beta))
 
 
