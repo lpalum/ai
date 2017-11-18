@@ -102,3 +102,4 @@ ENV/
 
 # pycharm ide directories
 */.idea/*
+.idea/*
